@@ -10,6 +10,7 @@ const kinesis = new AWS.Kinesis({
 const es = require('event-stream');
 const eos = require('end-of-stream');
 const batch = require('through-batch');
+const pretty = require('pretty-time');
 const ORDER_HEADERS = ['o_orderkey', 'o_custkey', 'o_orderstatus', 'o_totalprice', 'o_orderdate', 'o_orderpriority', 'o_clerk', 'o_shippriority', 'o_comment'];
 
 function getStream(bucket, key) {
@@ -20,7 +21,7 @@ function getStream(bucket, key) {
 	return s3.getObject(params).createReadStream();
 }
 
-const BATCH_MAX = 400;
+const BATCH_MAX = 500;
 
 
 function createJson(headers, line) {
@@ -36,15 +37,29 @@ function createJson(headers, line) {
 	return JSON.stringify(json);
 }
 
-function run() {
+let count = 0;
+var start = process.hrtime();
+
+let elapsed_time = function (note, interval, reset) {
+	if (!interval) {
+		interval = 'ms';
+	}
+
+	console.log(`${pretty(process.hrtime(start), interval)}${note ? ' -- ' + note : ''}`); // print message + time
+
+	if (reset) {
+		start = process.hrtime(); // reset the timer
+	}
+}
+
+function intervalFunc() {
+	elapsed_time(`${count} processed`, 's');
+}
+
+setInterval(intervalFunc, 5000);
+
+async function run() {
 	let stream = getStream('jaaromy-emr-input', 'bigdatalab/emrdata/orders.tbl');
-	// converter
-	// 	.fromStream(stream)
-	// 	.subscribe(json => {
-	// 		return Promise.try(() => {
-	// 			console.log(json);
-	// 		});
-	// 	});
 
 	eos(stream, function (err) {
 		// this will be set to the stream instance
@@ -52,14 +67,13 @@ function run() {
 		console.log('stream has ended', this === readableStream);
 	});
 
-	let count = 0;
 	stream
 		.pipe(es.split())
 		.pipe(es.map((line, callback) => {
 			callback(null, createJson(ORDER_HEADERS, line));
 		}))
 		.pipe(batch(BATCH_MAX))
-		.pipe(es.mapSync((records, callback) => {
+		.pipe(es.map(async (records, callback) => {
 			let params = {
 				Records: [],
 				StreamName: 'jaaromy-stream-1'
@@ -74,23 +88,15 @@ function run() {
 				});
 			}
 
-			stream.pause();
-			count += records.length;
-			if (count % 10000 === 0) {
-				console.log(count);
-			}
-			kinesis.putRecords(params).promise()
-				.then(data => {
-					// console.log(JSON.stringify(data, null, 2));
-					return data;
-				})
-				.catch(err => {
-					console.error(err);
-					throw err;
-				})
-				.finally(() => {
-					stream.resume();
-				});
+			let dz = await kinesis.putRecords(params).promise();
+
+			callback(null, dz.Records.length);
+		}))
+		.pipe(batch(20))
+		.pipe(es.mapSync((records) => {
+			records.map(val => {
+				count += val;
+			});
 		}));
 }
 
