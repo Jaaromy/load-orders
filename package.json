@@ -1,0 +1,26 @@
+{
+  "name": "load-orders",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jaaromy/load-orders.git"
+  },
+  "author": "Jaaromy",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jaaromy/load-orders/issues"
+  },
+  "homepage": "https://github.com/Jaaromy/load-orders#readme",
+  "dependencies": {
+    "aws-sdk": "^2.277.1",
+    "bluebird": "^3.5.1",
+    "end-of-stream": "^1.4.1",
+    "event-stream": "^3.3.4",
+    "through-batch": "^1.0.0"
+  }
+}
