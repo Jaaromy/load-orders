@@ -7,6 +7,9 @@ const s3 = new AWS.S3({
 const kinesis = new AWS.Kinesis({
 	region: 'us-west-2'
 });
+const firehose = new AWS.Firehose({
+	region: 'us-west-2'
+});
 const es = require('event-stream');
 const eos = require('end-of-stream');
 const batch = require('through-batch');
@@ -76,21 +79,20 @@ async function run() {
 		.pipe(es.map(async (records, callback) => {
 			let params = {
 				Records: [],
-				StreamName: 'jaaromy-stream-1'
+				DeliveryStreamName: 'jaaromy-firehose-2'
 			};
 
 			for (let i = 0; i < records.length; i++) {
-				let data = records[i];
+				let data = JSON.stringify(records[i]) + '\n';
 
 				params.Records.push({
-					Data: data,
-					PartitionKey: 'SomeKey'
+					Data: data
 				});
 			}
 
-			let dz = await kinesis.putRecords(params).promise();
+			let dz = await firehose.putRecordBatch(params).promise();
 
-			callback(null, dz.Records.length);
+			callback(null, dz.RequestResponses.length);
 		}))
 		.pipe(batch(20))
 		.pipe(es.mapSync((records) => {
